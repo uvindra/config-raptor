@@ -12,3 +12,5 @@
 hs_err_pid*
 /.idea
 /config-raptor.iml
+src/main/resources/
+target/

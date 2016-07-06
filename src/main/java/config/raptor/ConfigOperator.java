@@ -16,10 +16,17 @@
 
 package config.raptor;
 
-public interface ConfigFile {
+public interface ConfigOperator {
+
+    public enum Position {
+        BEFORE,
+        AT,
+        AFTER
+    }
+
     boolean isConfigExists(String pathString) throws ConfigException;
     Config getConfig(String pathString) throws ConfigException;
-    void updateConfig(String pathString, Config config);
-    void addConfig(String pathString, Config config);
-    void removeConfig(String pathString);
+    boolean updateConfig(String pathString, Config config) throws ConfigException;
+    boolean addConfig(String pathString, Config config, Position position) throws ConfigException;
+    boolean removeConfig(String pathString) throws ConfigException;
 }

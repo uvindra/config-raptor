@@ -16,25 +16,71 @@
 
 package config.raptor;
 
+import org.w3c.dom.Attr;
 import org.w3c.dom.Element;
+import org.w3c.dom.NamedNodeMap;
+import org.w3c.dom.Node;
 
 public class XMLConfig implements Config {
 
     private String name;
-    private Element value;
+    private Node value;
 
-    XMLConfig(String name, Element value) {
+    XMLConfig(String name, Node value) {
         this.name = name;
         this.value = value;
     }
 
     @Override
     public String getValue() {
-        return value.getNodeValue();
+        return value.getTextContent();
     }
 
     @Override
     public String getName() {
         return name;
     }
+
+
+
+
+    @Override public boolean equals(Object o) {
+        if (o == this)
+            return true;
+        if (!(o instanceof XMLConfig))
+            return false;
+
+        XMLConfig config = (XMLConfig) o;
+
+        if (!name.equals(config.name))
+            return false;
+
+        if (!value.getTextContent().equals(config.value.getTextContent()))
+            return false;
+
+        final NamedNodeMap thisAttributes = value.getAttributes();
+        final NamedNodeMap otherAttributes= config.value.getAttributes();
+
+        if (thisAttributes.getLength() != otherAttributes.getLength())
+            return false;
+
+        for (int i = 0; i < thisAttributes.getLength(); ++i) {
+            if (!thisAttributes.item(i).getNodeName().equals(otherAttributes.item(i).getNodeName()))
+                 return false;
+
+            if (!thisAttributes.item(i).getNodeValue().equals(otherAttributes.item(i).getNodeValue()))
+                return false;
+        }
+
+        return true;
+    }
+
+    @Override public int hashCode() {
+        int result = 17;
+        result = 31 * result + name.hashCode();
+        result = 31 * result + value.hashCode();
+        return result;
+    }
+
+    Node getNode() { return this.value; }
 }
