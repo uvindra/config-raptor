@@ -14,23 +14,35 @@
  * limitations under the License.
  */
 
-package config.raptor;
+package config.raptor.xml;
 
+import config.raptor.ConfigException;
+import org.json.JSONObject;
 import org.w3c.dom.*;
+import org.xml.sax.SAXException;
+
+import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.xpath.*;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
 
-public class XMLConfigOperator implements ConfigOperator {
+public class XMLConfigOperator {
+
+    public enum Position {
+        BEFORE,
+        AT,
+        AFTER
+    }
     private Document doc;
 
-    public XMLConfigOperator(Document doc) {
+    // No external construction allowed to prevent issues related to the wrong Document object being used
+    XMLConfigOperator(Document doc) {
         this.doc = doc;
     }
 
-    @Override
-    public boolean isConfigExists(String pathString) throws ConfigException{
+    public boolean isConfigExists(String pathString) throws ConfigException {
         try {
             NodeList nodeList = getXMLElements(pathString);
 
@@ -46,26 +58,18 @@ public class XMLConfigOperator implements ConfigOperator {
         }
     }
 
-    @Override
-    public Config getConfig(String pathString) throws ConfigException {
-        Config config = null;
+    public Node getConfig(String pathString) throws ConfigException {
+        Node config = null;
 
         try {
             NodeList nodeList = getXMLElements(pathString);
 
             if (nodeList.getLength() > 0) {
-                Node node = nodeList.item(0);
+                config = nodeList.item(0);
 
-                String name;
-
-                if (node.getParentNode() != null) {
-                    name = node.getNodeName();
+                if (config.getParentNode() == null) {
+                    config = config.getFirstChild();
                 }
-                else {
-                    name = node.getFirstChild().getNodeName();
-                }
-
-                config = new XMLConfig(name, node);
             }
         } catch (XPathExpressionException e) {
             throw new ConfigException("XPath expression '" + pathString + "' evaluation error", e);
@@ -74,8 +78,7 @@ public class XMLConfigOperator implements ConfigOperator {
         return config;
     }
 
-    @Override
-    public boolean updateConfig(String pathString, Config config) throws ConfigException {
+    public boolean updateConfig(String pathString, Node newNode) throws ConfigException {
         try {
             NodeList nodeList = getXMLElements(pathString);
 
@@ -83,7 +86,7 @@ public class XMLConfigOperator implements ConfigOperator {
                 Node node = nodeList.item(0);
 
                 if (node.getNodeType() == Node.ELEMENT_NODE) {
-                    XMLUtil.updateNode(node, ((XMLConfig) config).getNode());
+                    XMLUtil.updateNode(node, newNode);
 
                     return true;
                 }
@@ -95,8 +98,7 @@ public class XMLConfigOperator implements ConfigOperator {
         return false;
     }
 
-    @Override
-    public boolean addConfig(String pathString, Config config, Position position) throws ConfigException {
+    public boolean addConfig(String pathString, Node config, Position position) throws ConfigException {
         try {
             NodeList nodeList = getXMLElements(pathString);
 
@@ -120,7 +122,6 @@ public class XMLConfigOperator implements ConfigOperator {
         return false;
     }
 
-    @Override
     public boolean removeConfig(String pathString) throws ConfigException {
         try {
             NodeList nodeList = getXMLElements(pathString);
@@ -146,7 +147,8 @@ public class XMLConfigOperator implements ConfigOperator {
     }
 
 
-    private boolean addConfigBefore(Node currentNode, Config config) {
+    private boolean addConfigBefore(Node currentNode, Node newNode)
+    {
         Node parentNode = currentNode.getParentNode();
 
         if (parentNode != null) {
@@ -157,7 +159,7 @@ public class XMLConfigOperator implements ConfigOperator {
                 Node child = childNodes.item(i);
 
                 if (child.equals(currentNode)) {
-                    childList.add(((XMLConfig) config).getNode());
+                    childList.add(newNode);
                 }
 
                 childList.add(child);
@@ -178,9 +180,10 @@ public class XMLConfigOperator implements ConfigOperator {
     }
 
 
-    private boolean addConfigAt(Node currentNode, Config config) {
+    private boolean addConfigAt(Node currentNode, Node newNode)
+    {
         if (currentNode.getParentNode() != null) { // if not the root node
-            currentNode.appendChild(((XMLConfig) config).getNode());
+            currentNode.appendChild(newNode);
 
             return true;
         }
@@ -189,7 +192,8 @@ public class XMLConfigOperator implements ConfigOperator {
     }
 
 
-    private boolean addConfigAfter(Node currentNode, Config config) {
+    private boolean addConfigAfter(Node currentNode, Node newNode)
+    {
         Node parentNode = currentNode.getParentNode();
 
         if (parentNode != null) {
@@ -202,7 +206,7 @@ public class XMLConfigOperator implements ConfigOperator {
                 childList.add(child);
 
                 if (child.equals(currentNode)) {
-                    childList.add(((XMLConfig) config).getNode());
+                    childList.add(newNode);
                 }
             }
 

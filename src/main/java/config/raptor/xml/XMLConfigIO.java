@@ -14,8 +14,10 @@
  * limitations under the License.
  */
 
-package config.raptor;
+package config.raptor.xml;
 
+import config.raptor.ConfigException;
+import config.raptor.ConfigIO;
 import org.w3c.dom.Document;
 import org.xml.sax.SAXException;
 
@@ -37,6 +39,7 @@ public class XMLConfigIO implements ConfigIO {
     private File file;
     private Document doc;
     private XMLConfigOperator configOperator;
+    private XMLConfigCreator configCreator;
 
     public XMLConfigIO(String filePath) throws ParserConfigurationException, IOException, SAXException {
         file = new File(filePath);
@@ -55,6 +58,7 @@ public class XMLConfigIO implements ConfigIO {
         doc.getDocumentElement().normalize();
 
         configOperator = new XMLConfigOperator(doc);
+        configCreator = new XMLConfigCreator(doc);
     }
 
     @Override
@@ -71,12 +75,11 @@ public class XMLConfigIO implements ConfigIO {
         }
     }
 
-    @Override
-    public ConfigOperator getOperator() {
+    public XMLConfigOperator getConfigOperator() {
         return configOperator;
     }
 
-    Document getXMLDocument() {
-        return doc;
+    public XMLConfigCreator getConfigCreator() {
+        return configCreator;
     }
 }

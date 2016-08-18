@@ -14,15 +14,16 @@
  * limitations under the License.
  */
 
-package config.raptor;
+package config.raptor.xml;
+
 
 import org.w3c.dom.Attr;
 import org.w3c.dom.Element;
 import org.w3c.dom.NamedNodeMap;
 import org.w3c.dom.Node;
 
-public class XMLUtil {
 
+public class XMLUtil {
     static void updateNode(Node currentNode, final Node newNode) {
         currentNode.setTextContent(newNode.getTextContent());
 

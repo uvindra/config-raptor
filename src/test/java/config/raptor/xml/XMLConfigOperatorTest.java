@@ -14,8 +14,9 @@
  * limitations under the License.
  */
 
-package config.raptor;
+package config.raptor.xml;
 
+import config.raptor.ConfigException;
 import org.testng.Assert;
 import org.testng.annotations.*;
 import org.w3c.dom.Document;
@@ -26,6 +27,7 @@ import org.w3c.dom.NodeList;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
+import javax.xml.xpath.*;
 import java.io.File;
 import java.util.Iterator;
 import java.util.Map;
@@ -35,16 +37,23 @@ public class XMLConfigOperatorTest {
 
     private static final String API_MANAGER_CONF = "api-manager.xml";
     private static final String COMMENTS_CONF = "comments.xml";
-    private String apiManagerConfPath;
-    private String commentsConfPath;
+    private Document apiManagerConfDoc;
+    private Document commentsConfDoc;
 
-    private Config createConfig(String name, String content) throws ParserConfigurationException {
-        DocumentBuilderFactory docFactory = DocumentBuilderFactory.newInstance();
-        DocumentBuilder docBuilder = docFactory.newDocumentBuilder();
-        Document doc = docBuilder.newDocument();
+    private Node createConfig(Document doc, String name, String content) throws ParserConfigurationException {
         Element expectedElement = doc.createElement(name);
         expectedElement.setTextContent(content);
-        return new XMLConfig(name, expectedElement);
+        return expectedElement;
+    }
+
+    private Node getNode(Document doc, String xpathString) throws XPathExpressionException {
+        XPathFactory xPathfactory = XPathFactory.newInstance();
+        XPath xpath = xPathfactory.newXPath();
+        XPathExpression expr = xpath.compile(xpathString);
+
+        NodeList nodeList = (NodeList) expr.evaluate(doc, XPathConstants.NODESET);
+        return nodeList.item(0);
+
     }
 
     private TreeMap<Integer, Node> getChildren(Node parentNode) {
@@ -85,18 +94,22 @@ public class XMLConfigOperatorTest {
     public void setUp() throws Exception {
         File apiManagerConfFile = new File(Thread.currentThread().getContextClassLoader().
                 getResource(API_MANAGER_CONF).getFile());
-        apiManagerConfPath = apiManagerConfFile.getAbsolutePath();
+
+        DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+        DocumentBuilder builder = factory.newDocumentBuilder();
+        apiManagerConfDoc = builder.parse(apiManagerConfFile.getAbsolutePath());
 
         File commentsConfFile = new File(Thread.currentThread().getContextClassLoader().
                 getResource(COMMENTS_CONF).getFile());
 
-        commentsConfPath = commentsConfFile.getAbsolutePath();
+        factory = DocumentBuilderFactory.newInstance();
+        builder = factory.newDocumentBuilder();
+        commentsConfDoc = builder.parse(commentsConfFile.getAbsolutePath());
     }
 
     @Test
     public void testIsConfigExists() throws Exception {
-        XMLConfigIO apiManagerConfIO = new XMLConfigIO(apiManagerConfPath);
-        ConfigOperator apiManagerConf = apiManagerConfIO.getOperator();
+        XMLConfigOperator apiManagerConf = new XMLConfigOperator(apiManagerConfDoc);
 
         boolean isExists = apiManagerConf.isConfigExists("//DataSourceName");
         Assert.assertTrue(isExists);
@@ -104,8 +117,7 @@ public class XMLConfigOperatorTest {
 
     @Test
     public void testSearchNonExistingElement() throws Exception {
-        XMLConfigIO apiManagerConfIO = new XMLConfigIO(apiManagerConfPath);
-        ConfigOperator apiManagerConf = apiManagerConfIO.getOperator();
+        XMLConfigOperator apiManagerConf = new XMLConfigOperator(apiManagerConfDoc);
 
         boolean isExists = apiManagerConf.isConfigExists("blah");
         Assert.assertFalse(isExists);
@@ -116,8 +128,7 @@ public class XMLConfigOperatorTest {
 
     @Test
     public void testIsConfigExistsInvalidXPath() throws Exception {
-        XMLConfigIO apiManagerConfIO = new XMLConfigIO(apiManagerConfPath);
-        ConfigOperator apiManagerConf = apiManagerConfIO.getOperator();
+        XMLConfigOperator apiManagerConf = new XMLConfigOperator(apiManagerConfDoc);
 
         ConfigException exception = null;
         try {
@@ -133,8 +144,7 @@ public class XMLConfigOperatorTest {
 
     @Test
     public void testIsConfigExistsAsComment() throws Exception {
-        XMLConfigIO apiManagerConfIO = new XMLConfigIO(apiManagerConfPath);
-        ConfigOperator apiManagerConf = apiManagerConfIO.getOperator();
+        XMLConfigOperator apiManagerConf = new XMLConfigOperator(apiManagerConfDoc);
 
         boolean isExists = apiManagerConf.isConfigExists("//APIConsumerAuthentication/comment()[contains(., 'ClaimsRetrieverImplClass')]");
         Assert.assertTrue(isExists);
@@ -146,36 +156,37 @@ public class XMLConfigOperatorTest {
 
     @Test
     public void testGetConfig() throws Exception {
-        XMLConfigIO apiManagerConfIO = new XMLConfigIO(apiManagerConfPath);
-        ConfigOperator apiManagerConf = apiManagerConfIO.getOperator();
+        XMLConfigOperator apiManagerConf = new XMLConfigOperator(apiManagerConfDoc);
 
         // Create expected element
-        Config expectedConfig = createConfig("SecurityContextHeader", "X-JWT-Assertion");
+        Node expectedConfig = createConfig(apiManagerConfDoc, "SecurityContextHeader", "X-JWT-Assertion");
 
-        Config config = apiManagerConf.getConfig("//APIConsumerAuthentication/SecurityContextHeader");
+        Node config = apiManagerConf.getConfig("//APIConsumerAuthentication/SecurityContextHeader");
         Assert.assertNotNull(config);
-        Assert.assertEquals(config.getName(), "SecurityContextHeader");
-        Assert.assertTrue(config.equals(expectedConfig));
+        Assert.assertEquals(config.getNodeName(), "SecurityContextHeader");
+
+
+        Assert.assertEquals(config.getNodeName(), expectedConfig.getNodeName());
+        Assert.assertEquals(config.getTextContent(), expectedConfig.getTextContent());
 
         config = apiManagerConf.getConfig("//SecurityContextHeader");
         Assert.assertNotNull(config);
-        Assert.assertEquals(config.getName(), "SecurityContextHeader");
-        Assert.assertTrue(config.equals(expectedConfig));
+        Assert.assertEquals(config.getNodeName(), "SecurityContextHeader");
+        Assert.assertEquals(config.getNodeName(), expectedConfig.getNodeName());
+        Assert.assertEquals(config.getTextContent(), expectedConfig.getTextContent());
     }
 
     @Test
     public void testGetConfigNonExistingElement() throws Exception {
-        XMLConfigIO apiManagerConfIO = new XMLConfigIO(apiManagerConfPath);
-        ConfigOperator apiManagerConf = apiManagerConfIO.getOperator();
+        XMLConfigOperator apiManagerConf = new XMLConfigOperator(apiManagerConfDoc);
 
-        Config config = apiManagerConf.getConfig("//SecurityContextHeaders");
+        Node config = apiManagerConf.getConfig("//SecurityContextHeaders");
         Assert.assertNull(config);
     }
 
     @Test
     public void testGetConfigInvalidXPath() throws Exception {
-        XMLConfigIO apiManagerConfIO = new XMLConfigIO(apiManagerConfPath);
-        ConfigOperator apiManagerConf = apiManagerConfIO.getOperator();
+        XMLConfigOperator apiManagerConf = new XMLConfigOperator(apiManagerConfDoc);
 
         ConfigException exception = null;
         try {
@@ -191,51 +202,43 @@ public class XMLConfigOperatorTest {
 
     @Test
     public void testUpdateConfig() throws Exception {
-        XMLConfigIO apiManagerConfIO = new XMLConfigIO(apiManagerConfPath);
-        ConfigOperator apiManagerConf = apiManagerConfIO.getOperator();
-
-        XMLConfigCreator configCreator = new XMLConfigCreator(apiManagerConfIO.getXMLDocument(), "Username", "admin");
-
-        Assert.assertTrue(apiManagerConf.updateConfig("//AuthManager/Username", configCreator.createConfig()));
+        XMLConfigOperator apiManagerConf = new XMLConfigOperator(apiManagerConfDoc);
 
         // Create expected element
-        Config expectedConfig = createConfig("Username", "admin");
+        Node expectedConfig = createConfig(apiManagerConfDoc, "Username", "admin");
 
-        Config config = apiManagerConf.getConfig("//AuthManager/Username");
+        Assert.assertTrue(apiManagerConf.updateConfig("//AuthManager/Username", expectedConfig));
+
+        Node config = apiManagerConf.getConfig("//AuthManager/Username");
         Assert.assertNotNull(config);
-        Assert.assertEquals(config.getName(), "Username");
-        Assert.assertTrue(config.equals(expectedConfig));
+        Assert.assertEquals(config.getNodeName(), "Username");
+        Assert.assertEquals(config.getNodeName(), expectedConfig.getNodeName());
+        Assert.assertEquals(config.getTextContent(), expectedConfig.getTextContent());
     }
 
     @Test
     public void testUpdateNonExistingConfig() throws Exception {
-        XMLConfigIO apiManagerConfIO = new XMLConfigIO(apiManagerConfPath);
-        ConfigOperator apiManagerConf = apiManagerConfIO.getOperator();
-
-        XMLConfigCreator configCreator = new XMLConfigCreator(apiManagerConfIO.getXMLDocument(), "Username", "admin");
-
-        Assert.assertFalse(apiManagerConf.updateConfig("//AuthManager/UsernameS", configCreator.createConfig()));
+        XMLConfigOperator apiManagerConf = new XMLConfigOperator(apiManagerConfDoc);
 
         // Create expected element
-        Config expectedConfig = createConfig("Username", "admin");
+        Node expectedConfig = createConfig(apiManagerConfDoc, "Username", "blah");
+
+        Assert.assertFalse(apiManagerConf.updateConfig("//AuthManager/UsernameS", expectedConfig));
 
         // Check if actual config has been unchanged
-        Config config = apiManagerConf.getConfig("//AuthManager/Username");
+        Node config = apiManagerConf.getConfig("//AuthManager/Username");
         Assert.assertNotNull(config);
-        Assert.assertEquals(config.getName(), "Username");
-        Assert.assertFalse(config.equals(expectedConfig));
+        Assert.assertEquals(config.getNodeName(), "Username");
+        Assert.assertNotEquals(config.getTextContent(), expectedConfig.getTextContent());
     }
 
     @Test
     public void testUpdateConfigInvalidXPath() throws Exception {
-        XMLConfigIO apiManagerConfIO = new XMLConfigIO(apiManagerConfPath);
-        ConfigOperator apiManagerConf = apiManagerConfIO.getOperator();
-
-        XMLConfigCreator configCreator = new XMLConfigCreator(apiManagerConfIO.getXMLDocument(), "Username", "admin");
+        XMLConfigOperator apiManagerConf = new XMLConfigOperator(apiManagerConfDoc);
 
         ConfigException exception = null;
         try {
-            apiManagerConf.updateConfig("\\", configCreator.createConfig());
+            apiManagerConf.updateConfig("\\", createConfig(apiManagerConfDoc, "Username", "admin"));
         }
         catch (ConfigException e) {
             exception = e;
@@ -247,23 +250,22 @@ public class XMLConfigOperatorTest {
 
     @Test
     public void testAddConfigBefore() throws Exception {
-        XMLConfigIO apiManagerConfIO = new XMLConfigIO(apiManagerConfPath);
-        ConfigOperator apiManagerConf = apiManagerConfIO.getOperator();
-
-        XMLConfigCreator configCreator = new XMLConfigCreator(apiManagerConfIO.getXMLDocument(), "ClaimsRetrieverImplClass",
-                                        "org.wso2.carbon.apimgt.impl.token.DefaultClaimsRetriever");
+        XMLConfigOperator apiManagerConf = new XMLConfigOperator(apiManagerConfDoc);
 
         // Validate order of child nodes
-        Config parent = apiManagerConf.getConfig("//APIConsumerAuthentication");
+        Node parentNode = getNode(apiManagerConfDoc, "//APIConsumerAuthentication");
 
-        Node parentNode = ((XMLConfig) parent).getNode();
         int childPosition = getPositionOfChild(parentNode, "ConsumerDialectURI");
         TreeMap<Integer, Node> origSiblings = getChildren(parentNode);
 
-        Assert.assertTrue(apiManagerConf.addConfig("//APIConsumerAuthentication/comment()[contains(., 'ConsumerDialectURI')]",
-                configCreator.createConfig(), ConfigOperator.Position.BEFORE));
+        Node newConfig = createConfig(apiManagerConfDoc, "ClaimsRetrieverImplClass",
+                "org.wso2.carbon.apimgt.impl.token.DefaultClaimsRetriever");
 
-        Config config = apiManagerConf.getConfig("//APIConsumerAuthentication/ClaimsRetrieverImplClass");
+        boolean isAdded = apiManagerConf.addConfig("//APIConsumerAuthentication/comment()" +
+                        "[contains(., 'ConsumerDialectURI')]", newConfig, XMLConfigOperator.Position.BEFORE);
+        Assert.assertTrue(isAdded);
+
+        Node config = apiManagerConf.getConfig("//APIConsumerAuthentication/ClaimsRetrieverImplClass");
         Assert.assertNotNull(config);
 
         // Validate order of child nodes
@@ -298,92 +300,71 @@ public class XMLConfigOperatorTest {
 
     @Test
     public void testAddConfigBeforeRootElement() throws Exception {
-        XMLConfigIO apiManagerConfIO = new XMLConfigIO(apiManagerConfPath);
-        ConfigOperator apiManagerConf = apiManagerConfIO.getOperator();
+        XMLConfigOperator apiManagerConf = new XMLConfigOperator(apiManagerConfDoc);
 
-        XMLConfigCreator configCreator = new XMLConfigCreator(apiManagerConfIO.getXMLDocument(),
-                "ClaimsRetrieverImplClass", "org.wso2.carbon.apimgt.impl.token.DefaultClaimsRetriever");
-
-        Assert.assertFalse(apiManagerConf.addConfig("/", configCreator.createConfig(),
-                ConfigOperator.Position.BEFORE));
+        Assert.assertFalse(apiManagerConf.addConfig("/", createConfig(apiManagerConfDoc, "ClaimsRetrieverImplClass",
+                "org.wso2.carbon.apimgt.impl.token.DefaultClaimsRetriever"), XMLConfigOperator.Position.BEFORE));
 
         // Validate if root element has changed
-        Config root = apiManagerConf.getConfig("/");
+        Node root = apiManagerConf.getConfig("/");
 
-        Assert.assertFalse(root.getName().equals("ClaimsRetrieverImplClass"));
+        Assert.assertFalse(root.getNodeName().equals("ClaimsRetrieverImplClass"));
     }
 
     @Test
     public void testAddConfigAtRootElement() throws Exception {
-        XMLConfigIO apiManagerConfIO = new XMLConfigIO(apiManagerConfPath);
-        ConfigOperator apiManagerConf = apiManagerConfIO.getOperator();
+        XMLConfigOperator apiManagerConf = new XMLConfigOperator(apiManagerConfDoc);
 
-        XMLConfigCreator configCreator = new XMLConfigCreator(apiManagerConfIO.getXMLDocument(),
-                "ClaimsRetrieverImplClass", "org.wso2.carbon.apimgt.impl.token.DefaultClaimsRetriever");
-
-        Assert.assertFalse(apiManagerConf.addConfig("/", configCreator.createConfig(),
-                ConfigOperator.Position.AT));
+        Assert.assertFalse(apiManagerConf.addConfig("/", createConfig(apiManagerConfDoc, "ClaimsRetrieverImplClass",
+                        "org.wso2.carbon.apimgt.impl.token.DefaultClaimsRetriever"), XMLConfigOperator.Position.AT));
 
         // Validate if root element has changed
-        Config root = apiManagerConf.getConfig("/");
+        Node root = apiManagerConf.getConfig("/");
 
-        Assert.assertFalse(root.getName().equals("ClaimsRetrieverImplClass"));
+        Assert.assertFalse(root.getNodeName().equals("ClaimsRetrieverImplClass"));
     }
 
     @Test
     public void testAddConfigAfterRootElement() throws Exception {
-        XMLConfigIO apiManagerConfIO = new XMLConfigIO(apiManagerConfPath);
-        ConfigOperator apiManagerConf = apiManagerConfIO.getOperator();
+        XMLConfigOperator apiManagerConf = new XMLConfigOperator(apiManagerConfDoc);
 
-        XMLConfigCreator configCreator = new XMLConfigCreator(apiManagerConfIO.getXMLDocument(),
-                "ClaimsRetrieverImplClass", "org.wso2.carbon.apimgt.impl.token.DefaultClaimsRetriever");
-
-        Assert.assertFalse(apiManagerConf.addConfig("/", configCreator.createConfig(),
-                ConfigOperator.Position.AFTER));
+        Assert.assertFalse(apiManagerConf.addConfig("/", createConfig(apiManagerConfDoc, "ClaimsRetrieverImplClass",
+                                                "org.wso2.carbon.apimgt.impl.token.DefaultClaimsRetriever"),
+                XMLConfigOperator.Position.AFTER));
 
         // Validate if root element has changed
-        Config root = apiManagerConf.getConfig("/");
+        Node root = apiManagerConf.getConfig("/");
 
-        Assert.assertFalse(root.getName().equals("ClaimsRetrieverImplClass"));
+        Assert.assertFalse(root.getNodeName().equals("ClaimsRetrieverImplClass"));
     }
 
     @Test
     public void testAddConfigBeforeRootElementWithStartingComments() throws Exception {
-        XMLConfigIO commentsConfIO = new XMLConfigIO(commentsConfPath);
-        ConfigOperator commentsConf = commentsConfIO.getOperator();
+        XMLConfigOperator commentsConf = new XMLConfigOperator(commentsConfDoc);
 
-        XMLConfigCreator configCreator = new XMLConfigCreator(commentsConfIO.getXMLDocument(),
-                "ClaimsRetrieverImplClass", "org.wso2.carbon.apimgt.impl.token.DefaultClaimsRetriever");
-
-        Assert.assertFalse(commentsConf.addConfig("/", configCreator.createConfig(),
-                ConfigOperator.Position.BEFORE));
+        Assert.assertFalse(commentsConf.addConfig("/", createConfig(commentsConfDoc, "ClaimsRetrieverImplClass",
+                "org.wso2.carbon.apimgt.impl.token.DefaultClaimsRetriever"), XMLConfigOperator.Position.BEFORE));
 
         // Validate if root element has changed
-        Config root = commentsConf.getConfig("/");
+        Node root = commentsConf.getConfig("/");
 
-        Assert.assertFalse(root.getName().equals("ClaimsRetrieverImplClass"));
+        Assert.assertFalse(root.getNodeName().equals("ClaimsRetrieverImplClass"));
     }
 
 
     @Test
     public void testAddConfigAt() throws Exception {
-        XMLConfigIO apiManagerConfIO = new XMLConfigIO(apiManagerConfPath);
-        ConfigOperator apiManagerConf = apiManagerConfIO.getOperator();
-
-        XMLConfigCreator configCreator = new XMLConfigCreator(apiManagerConfIO.getXMLDocument(), "APIMClaimCacheExpiry",
-                "600");
+        XMLConfigOperator apiManagerConf = new XMLConfigOperator(apiManagerConfDoc);
 
         // Validate order of child nodes
-        Config parent = apiManagerConf.getConfig("//APIConsumerAuthentication");
-
-        Node parentNode = ((XMLConfig) parent).getNode();
+        Node parentNode = getNode(apiManagerConfDoc, "//APIConsumerAuthentication");
         TreeMap<Integer, Node> origSiblings = getChildren(parentNode);
         int lastNodePosition = origSiblings.size() - 1;
 
-        Assert.assertTrue(apiManagerConf.addConfig("//APIConsumerAuthentication", configCreator.createConfig(),
-                ConfigOperator.Position.AT));
+        Assert.assertTrue(apiManagerConf.addConfig("//APIConsumerAuthentication",
+                createConfig(apiManagerConfDoc, "APIMClaimCacheExpiry", "600"), XMLConfigOperator.Position.AT));
 
-        Config config = apiManagerConf.getConfig("//APIConsumerAuthentication/APIMClaimCacheExpiry");
+        Node config = apiManagerConf.getConfig("//APIConsumerAuthentication/APIMClaimCacheExpiry");
         Assert.assertNotNull(config);
 
 
@@ -414,26 +395,25 @@ public class XMLConfigOperatorTest {
 
     @Test
     public void testAddConfigAfter() throws Exception {
-        XMLConfigIO apiManagerConfIO = new XMLConfigIO(apiManagerConfPath);
-        ConfigOperator apiManagerConf = apiManagerConfIO.getOperator();
-
-        XMLConfigCreator configCreator = new XMLConfigCreator(apiManagerConfIO.getXMLDocument(), "ClaimsRetrieverImplClass",
-                "org.wso2.carbon.apimgt.impl.token.DefaultClaimsRetriever");
+        XMLConfigOperator apiManagerConf = new XMLConfigOperator(apiManagerConfDoc);
 
         // Validate order of child nodes
-        Config parent = apiManagerConf.getConfig("//APIConsumerAuthentication");
-
-        Node parentNode = ((XMLConfig) parent).getNode();
+        Node parentNode = getNode(apiManagerConfDoc, "//APIConsumerAuthentication");
         int childPosition = getPositionOfChild(parentNode, "ClaimsRetrieverImplClass");
         TreeMap<Integer, Node> origSiblings = getChildren(parentNode);
 
-        Assert.assertTrue(apiManagerConf.addConfig("//APIConsumerAuthentication/comment()[contains(., 'ClaimsRetrieverImplClass')]",
-                configCreator.createConfig(), ConfigOperator.Position.AFTER));
+        Node newConfig = createConfig(apiManagerConfDoc, "ClaimsRetrieverImplClass",
+                "org.wso2.carbon.apimgt.impl.token.DefaultClaimsRetriever");
 
-        Config config = apiManagerConf.getConfig("//APIConsumerAuthentication/ClaimsRetrieverImplClass");
+        Assert.assertTrue(apiManagerConf.addConfig("//APIConsumerAuthentication/comment()" +
+                        "[contains(., 'ClaimsRetrieverImplClass')]",
+                newConfig, XMLConfigOperator.Position.AFTER));
+
+        Node config = apiManagerConf.getConfig("//APIConsumerAuthentication/ClaimsRetrieverImplClass");
         Assert.assertNotNull(config);
 
         // Validate order of child nodes
+        parentNode = getNode(apiManagerConfDoc, "//APIConsumerAuthentication");
         TreeMap<Integer, Node> newSiblings = getChildren(parentNode);
 
         Assert.assertTrue(newSiblings.size() == origSiblings.size() + 1);
@@ -464,16 +444,14 @@ public class XMLConfigOperatorTest {
 
     @Test
     public void testAddToNonExistingConfig() throws Exception {
-        XMLConfigIO apiManagerConfIO = new XMLConfigIO(apiManagerConfPath);
-        ConfigOperator apiManagerConf = apiManagerConfIO.getOperator();
+        XMLConfigOperator apiManagerConf = new XMLConfigOperator(apiManagerConfDoc);
 
-        XMLConfigCreator configCreator = new XMLConfigCreator(apiManagerConfIO.getXMLDocument(), "Rubbish", "dump");
-
-        Assert.assertFalse(apiManagerConf.addConfig("//AuthManager/UsernameS", configCreator.createConfig(),
-                ConfigOperator.Position.AFTER));
+        Node newConfig = createConfig(apiManagerConfDoc, "Rubbish", "dump");
+        Assert.assertFalse(apiManagerConf.addConfig("//AuthManager/UsernameS", newConfig,
+                                                                    XMLConfigOperator.Position.AFTER));
 
         // Check if config got added with invalid xpath
-        Config config = apiManagerConf.getConfig("//AuthManager/Rubbish");
+        Node config = apiManagerConf.getConfig("//AuthManager/Rubbish");
         Assert.assertNull(config);
     }
 
@@ -481,14 +459,12 @@ public class XMLConfigOperatorTest {
 
     @Test
     public void testAddConfigInvalidXPath() throws Exception {
-        XMLConfigIO apiManagerConfIO = new XMLConfigIO(apiManagerConfPath);
-        ConfigOperator apiManagerConf = apiManagerConfIO.getOperator();
-
-        XMLConfigCreator configCreator = new XMLConfigCreator(apiManagerConfIO.getXMLDocument(), "Username", "admin");
+        XMLConfigOperator apiManagerConf = new XMLConfigOperator(apiManagerConfDoc);
 
         ConfigException exception = null;
         try {
-            apiManagerConf.addConfig("\\", configCreator.createConfig(), ConfigOperator.Position.AFTER);
+            apiManagerConf.addConfig("\\", createConfig(apiManagerConfDoc, "Username", "admin"),
+                    XMLConfigOperator.Position.AFTER);
         }
         catch (ConfigException e) {
             exception = e;
@@ -501,19 +477,16 @@ public class XMLConfigOperatorTest {
 
     @Test
     public void testRemoveConfig() throws Exception {
-        XMLConfigIO apiManagerConfIO = new XMLConfigIO(apiManagerConfPath);
-        ConfigOperator apiManagerConf = apiManagerConfIO.getOperator();
+        XMLConfigOperator apiManagerConf = new XMLConfigOperator(apiManagerConfDoc);
 
         // Validate order of child nodes
-        Config parent = apiManagerConf.getConfig("//AuthManager");
-
-        Node parentNode = ((XMLConfig) parent).getNode();
+        Node parentNode = getNode(apiManagerConfDoc, "//AuthManager");
         int childPosition = getPositionOfChild(parentNode, "Username");
         TreeMap<Integer, Node> origSiblings = getChildren(parentNode);
 
         Assert.assertTrue(apiManagerConf.removeConfig("//AuthManager/Username"));
 
-        Config config = apiManagerConf.getConfig("//AuthManager/Username");
+        Node config = apiManagerConf.getConfig("//AuthManager/Username");
         Assert.assertNull(config);
 
         // Validate order of child nodes
@@ -543,13 +516,10 @@ public class XMLConfigOperatorTest {
 
     @Test
     public void testRemoveNonExistingConfig() throws Exception {
-        XMLConfigIO apiManagerConfIO = new XMLConfigIO(apiManagerConfPath);
-        ConfigOperator apiManagerConf = apiManagerConfIO.getOperator();
+        XMLConfigOperator apiManagerConf = new XMLConfigOperator(apiManagerConfDoc);
 
         // Validate order of child nodes
-        Config parent = apiManagerConf.getConfig("//AuthManager");
-
-        Node parentNode = ((XMLConfig) parent).getNode();
+        Node parentNode = getNode(apiManagerConfDoc, "//AuthManager");
         TreeMap<Integer, Node> origSiblings = getChildren(parentNode);
 
         Assert.assertFalse(apiManagerConf.removeConfig("//AuthManager/UsernameS"));
@@ -562,8 +532,7 @@ public class XMLConfigOperatorTest {
 
     @Test
     public void testRemoveConfigInvalidXPath() throws Exception {
-        XMLConfigIO apiManagerConfIO = new XMLConfigIO(apiManagerConfPath);
-        ConfigOperator apiManagerConf = apiManagerConfIO.getOperator();
+        XMLConfigOperator apiManagerConf = new XMLConfigOperator(apiManagerConfDoc);
 
         ConfigException exception = null;
         try {
@@ -579,14 +548,13 @@ public class XMLConfigOperatorTest {
 
     @Test
     public void testRemoveRootElement() throws Exception {
-        XMLConfigIO apiManagerConfIO = new XMLConfigIO(apiManagerConfPath);
-        ConfigOperator apiManagerConf = apiManagerConfIO.getOperator();
+        XMLConfigOperator apiManagerConf = new XMLConfigOperator(apiManagerConfDoc);
 
         Assert.assertFalse(apiManagerConf.removeConfig("/"));
 
         // Validate if root element has changed
-        Config root = apiManagerConf.getConfig("/");
+        Node root = apiManagerConf.getConfig("/");
 
-        Assert.assertTrue(root.getName().equals("APIManager"));
+        Assert.assertTrue(root.getNodeName().equals("APIManager"));
     }
 }

@@ -18,5 +18,4 @@ package config.raptor;
 
 public interface ConfigIO {
     void save() throws ConfigException;
-    ConfigOperator getOperator();
 }
